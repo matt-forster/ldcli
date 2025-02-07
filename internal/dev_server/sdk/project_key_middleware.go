@@ -3,6 +3,7 @@ package sdk
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 )
@@ -16,6 +17,13 @@ func SetProjectKeyOnContext(ctx context.Context, projectKey string) context.Cont
 }
 func GetProjectKeyFromContext(ctx context.Context) string {
 	return ctx.Value(projectKeyContextKey).(string)
+}
+
+// Strip the `api_key` prefix from the Authorization header value
+func stripApiKeyFromAuthorizationHeader(projectKey string) string {
+	after, _ := strings.CutPrefix(projectKey, "api_key ")
+
+	return after
 }
 
 func GetProjectKeyFromEnvIdParameter(pathParameter string) func(handler http.Handler) http.Handler {
@@ -42,6 +50,10 @@ func GetProjectKeyFromAuthorizationHeader(handler http.Handler) http.Handler {
 			http.Error(writer, "project key not on Authorization header", http.StatusUnauthorized)
 			return
 		}
+
+		// We compensate for the Swift SDK appending the `api_key` header name to the Authorization header
+		projectKey = stripApiKeyFromAuthorizationHeader(projectKey)
+
 		ctx = SetProjectKeyOnContext(ctx, projectKey)
 		request = request.WithContext(ctx)
 		handler.ServeHTTP(writer, request)
